@@ -1,28 +1,40 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/_core/hooks/useAuth";
 import PublicHeader from "@/components/PublicHeader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { backendApi } from "@/lib/backendApi";
 import {
   ArrowRight,
   BarChart3,
+  Building2,
+  CheckCircle2,
+  FileText,
   Globe2,
+  Layers,
+  Leaf,
+  Mail,
   Network,
   ShieldCheck,
+  TrendingDown,
   TrendingUp,
-  Leaf,
-  FileText,
-  Building2,
-  Layers,
-  Zap,
-  ChevronRight,
   Twitter,
   Linkedin,
   Github,
-  Mail,
+  Zap,
 } from "lucide-react";
 
-/* ─── Animated counter ──────────────────────────────────────────────────────── */
-function AnimatedCounter({ target, suffix = "", prefix = "" }: { target: number; suffix?: string; prefix?: string }) {
+function AnimatedCounter({
+  target,
+  suffix = "",
+  prefix = "",
+}: {
+  target: number;
+  suffix?: string;
+  prefix?: string;
+}) {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   const started = useRef(false);
@@ -30,467 +42,748 @@ function AnimatedCounter({ target, suffix = "", prefix = "" }: { target: number;
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const duration = 1800;
-          const steps = 60;
-          const increment = target / steps;
-          let current = 0;
-          const timer = setInterval(() => {
-            current += increment;
-            if (current >= target) {
-              setCount(target);
-              clearInterval(timer);
-            } else {
-              setCount(Math.floor(current));
-            }
-          }, duration / steps);
+        if (!entry.isIntersecting || started.current) {
+          return;
         }
+
+        started.current = true;
+        const duration = 1800;
+        const steps = 60;
+        const increment = target / steps;
+        let current = 0;
+
+        const timer = window.setInterval(() => {
+          current += increment;
+          if (current >= target) {
+            setCount(target);
+            window.clearInterval(timer);
+          } else {
+            setCount(Math.floor(current));
+          }
+        }, duration / steps);
       },
       { threshold: 0.5 }
     );
-    if (ref.current) observer.observe(ref.current);
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
     return () => observer.disconnect();
   }, [target]);
 
   return (
     <span ref={ref}>
-      {prefix}{count.toLocaleString()}{suffix}
+      {prefix}
+      {count.toLocaleString()}
+      {suffix}
     </span>
   );
 }
 
-/* ─── Stats data ─────────────────────────────────────────────────────────────── */
-const STATS = [
-  { label: "Issuers", value: 340, suffix: "+", icon: Building2, color: "text-primary" },
-  { label: "Offerings", value: 1280, suffix: "+", icon: Layers, color: "text-blue-500" },
-  { label: "Indices", value: 48, suffix: "", icon: BarChart3, color: "text-amber-500" },
-  { label: "Documents", value: 5600, suffix: "+", icon: FileText, color: "text-purple-500" },
+type LandingStat = {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon: typeof Building2;
+  color: string;
+  href: string;
+};
+
+const STATS: LandingStat[] = [
+  { label: "Verified Issuers", value: 340, suffix: "+", icon: Building2, color: "text-primary", href: "/dashboard/issuers" },
+  { label: "Live Offerings", value: 1280, suffix: "+", icon: Layers, color: "text-blue-600", href: "/dashboard/offerings" },
+  { label: "Sustainable Indices", value: 48, icon: BarChart3, color: "text-amber-600", href: "/dashboard/indices" },
+  { label: "Structured Documents", value: 5600, suffix: "+", icon: FileText, color: "text-emerald-600", href: "/dashboard/documents" },
 ];
 
-/* ─── Features data ──────────────────────────────────────────────────────────── */
-const FEATURES = [
+const PLATFORM_FEATURES = [
   {
     icon: Network,
     title: "Graph Relationship Engine",
-    description: "Visualize complex relationships between issuers, offerings, investors, and markets through an interactive Neo4j-powered graph.",
-    color: "bg-primary/10 text-primary",
+    description: "Visualize complex relationships between issuers, offerings, investors, and markets through an interactive intelligence layer.",
     badge: "Core",
+    color: "bg-primary/10 text-primary",
+    href: "/dashboard/graph",
   },
   {
     icon: ShieldCheck,
     title: "EU Taxonomy Compliance",
     description: "Every offering is mapped against EU Taxonomy and ESG classification frameworks, ensuring full regulatory alignment.",
-    color: "bg-blue-500/10 text-blue-600",
     badge: "Compliance",
+    color: "bg-blue-500/10 text-blue-600",
+    href: "/dashboard/documents",
   },
   {
     icon: TrendingUp,
     title: "Real-time Market Data",
-    description: "Live indices, price feeds, and performance metrics across all asset classes and regions with millisecond precision.",
-    color: "bg-amber-500/10 text-amber-600",
+    description: "Live indices, price feeds, and performance metrics across asset classes and regions with mission-focused precision.",
     badge: "Live",
+    color: "bg-amber-500/10 text-amber-600",
+    href: "/dashboard/indices",
   },
   {
     icon: Globe2,
     title: "Global Coverage",
     description: "Access issuers and opportunities across Europe, Asia-Pacific, Americas, Africa, and the Middle East in one unified platform.",
-    color: "bg-purple-500/10 text-purple-600",
     badge: "Global",
+    color: "bg-violet-500/10 text-violet-600",
+    href: "/discover",
   },
   {
     icon: Leaf,
     title: "Regenerative Finance",
-    description: "Purpose-built for impact investing — connecting capital to projects that restore ecosystems, communities, and economies.",
-    color: "bg-green-500/10 text-green-600",
+    description: "Purpose-built for impact investing by connecting capital to projects that restore ecosystems, communities, and economies.",
     badge: "Impact",
+    color: "bg-emerald-500/10 text-emerald-600",
+    href: "/dashboard/offerings",
   },
   {
     icon: Zap,
     title: "WBX Exchange Integration",
     description: "Seamless access to the Worldbridgers Exchange for direct listing, trading, and settlement of regenerative instruments.",
-    color: "bg-rose-500/10 text-rose-600",
     badge: "Exchange",
+    color: "bg-rose-500/10 text-rose-600",
+    href: "/dashboard/account?view=portfolio",
   },
 ];
 
-/* ─── How it works ───────────────────────────────────────────────────────────── */
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Discover Opportunities",
-    description: "Browse curated ESG-aligned issuers and offerings filtered by region, classification, and impact category.",
-  },
-  {
-    step: "02",
-    title: "Analyse Relationships",
-    description: "Explore the interconnected graph of entities — understand how issuers, investors, and markets are linked.",
-  },
-  {
-    step: "03",
-    title: "Verify Compliance",
-    description: "Review EU Taxonomy classifications, WBX labels, and full document trails for every instrument.",
-  },
-  {
-    step: "04",
-    title: "Connect & Transact",
-    description: "Engage directly through the WBX Exchange or connect with our specialist team to structure your investment.",
-  },
-];
-
-/* ─── Graph preview nodes (circular ring style) ────────────────────────────── */
 const PREVIEW_RING_NODES = [
-  { label: "Entrepreneurship", ring: "inner" as const, angle: -90, color: "#111827", type: "Theme" },
-  { label: "Future of Work", ring: "inner" as const, angle: 30, color: "#111827", type: "Theme" },
-  { label: "Social Justice", ring: "inner" as const, angle: 150, color: "#111827", type: "Theme" },
-  { label: "EIB", ring: "outer" as const, angle: -30, color: "#4ade80", type: "Issuer" },
-  { label: "NGC", ring: "outer" as const, angle: 25, color: "#4ade80", type: "Issuer" },
-  { label: "Impact Asia", ring: "outer" as const, angle: 95, color: "#60a5fa", type: "Investor" },
-  { label: "US Climate", ring: "outer" as const, angle: 160, color: "#60a5fa", type: "Investor" },
-  { label: "Carbon", ring: "outer" as const, angle: 215, color: "#fbbf24", type: "Opportunity" },
-  { label: "APAC Market", ring: "outer" as const, angle: -120, color: "#a78bfa", type: "Markets" },
+  { label: "Entrepreneurship", ring: "inner" as const, angle: -90, color: "#f8fafc" },
+  { label: "Future of Work", ring: "inner" as const, angle: 28, color: "#f8fafc" },
+  { label: "Social Justice", ring: "inner" as const, angle: 148, color: "#f8fafc" },
+  { label: "EIB", ring: "outer" as const, angle: -34, color: "#4ade80" },
+  { label: "NGC", ring: "outer" as const, angle: 18, color: "#4ade80" },
+  { label: "Impact Asia", ring: "outer" as const, angle: 92, color: "#60a5fa" },
+  { label: "US Climate", ring: "outer" as const, angle: 156, color: "#60a5fa" },
+  { label: "Carbon", ring: "outer" as const, angle: 222, color: "#fbbf24" },
+  { label: "APAC Market", ring: "outer" as const, angle: -126, color: "#a78bfa" },
 ];
+
+function previewHexPoints(size: number) {
+  return Array.from({ length: 6 }, (_, index) => {
+    const angle = (Math.PI / 3) * index - Math.PI / 6;
+    return `${Math.cos(angle) * size},${Math.sin(angle) * size}`;
+  }).join(" ");
+}
+
+function buildHeroSeries(changePercent: number, seriesIndex = 0) {
+  const target = changePercent;
+  const presets = [
+    [0.4, 0.9, 0.7, 1.2, -0.4, 1.35, -3.5, 1.1, -4.8, -2.1, -1.3, -0.9, -1.1, -0.4, -0.8, -0.2, -0.7, 0],
+    [0.15, -0.15, -0.55, -1.3, -1.1, -1.7, -2.5, -4.1, -5.5, -7.1, -6.4, -6.0, -5.1, -4.5, -5.2, -3.7, -5.8, 0],
+    [-0.4, -1.0, -1.7, -3.5, -4.1, -4.7, -3.2, -2.9, -5.0, -4.7, -7.4, -9.2, -11.7, -13.1, -8.6, -7.5, -10.9, 0],
+  ];
+
+  const preset = presets[seriesIndex % presets.length];
+  const start = seriesIndex === 0 ? -3.8 : seriesIndex === 1 ? -6.6 : -10.8;
+  const span = target - start;
+
+  return preset.map((offset, index) => {
+    if (index === preset.length - 1) {
+      return target;
+    }
+
+    const progress = index / (preset.length - 1);
+    const baseline = start + span * progress;
+    const taper = 1 - progress * 0.14;
+    return baseline + offset * taper;
+  });
+}
+
+function linePath(values: number[], width: number, height: number, min: number, max: number) {
+  if (!values.length) {
+    return "";
+  }
+
+  const usableWidth = width - 36;
+  const usableHeight = height - 28;
+  const range = Math.max(max - min, 1);
+  const points = values.map((value, index) => {
+    const x = 18 + (usableWidth * index) / Math.max(values.length - 1, 1);
+    const y = 12 + usableHeight - ((value - min) / range) * usableHeight;
+    return { x, y };
+  });
+
+  return points
+    .map((point, index) => {
+      if (index === 0) {
+        return `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+      }
+
+      return `L ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const isAuthenticated = Boolean(user);
+  const landingStatsQuery = useQuery<LandingStat[]>({
+    queryKey: ["landing-stats"],
+    queryFn: async () => {
+      const [issuers, offerings, indices, documents] = await Promise.all([
+        backendApi.issuers(new URLSearchParams({ page: "1", page_size: "1" })),
+        backendApi.offerings(new URLSearchParams({ page: "1", page_size: "1" })),
+        backendApi.indices(new URLSearchParams({ page: "1", page_size: "1" })),
+        backendApi.documents(new URLSearchParams({ page: "1", page_size: "1" })),
+      ]);
+
+      return [
+        { ...STATS[0], value: issuers.total },
+        { ...STATS[1], value: offerings.total },
+        { ...STATS[2], value: indices.total },
+        { ...STATS[3], value: documents.total },
+      ];
+    },
+    staleTime: 60_000,
+  });
+  const displayStats = landingStatsQuery.data ?? STATS;
+  const heroIndicesQuery = useQuery({
+    queryKey: ["landing-hero-indices"],
+    queryFn: () => backendApi.indices(new URLSearchParams({ page: "1", page_size: "3" })),
+    staleTime: 60_000,
+  });
+  const heroIndices = heroIndicesQuery.data?.data ?? [];
+  const heroSeries = heroIndices.map((item) => ({
+    ...item,
+    series: buildHeroSeries(
+      item.changePercent,
+      heroIndices.findIndex((candidate) => candidate.id === item.id)
+    ),
+  }));
+  const allHeroValues = heroSeries.flatMap((item) => item.series);
+  const chartMin = allHeroValues.length ? Math.min(-20, Math.min(...allHeroValues) - 1.5) : -20;
+  const chartMax = allHeroValues.length ? Math.max(5, Math.max(...allHeroValues) + 1.5) : 5;
+  const leadIndex = heroIndices[0];
 
   return (
     <div className="min-h-screen bg-background">
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -16px, 0) scale(1.04); }
+        }
+
+        @keyframes pulseBars {
+          0%, 100% { transform: scaleY(0.92); opacity: 0.35; }
+          50% { transform: scaleY(1.08); opacity: 0.72; }
+        }
+
+        @keyframes gradientShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+
+        @keyframes gridDrift {
+          0% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(-12px, 10px, 0); }
+          100% { transform: translate3d(0, 0, 0); }
+        }
+      `}</style>
       <PublicHeader />
 
-      {/* ── HERO ─────────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex items-center overflow-hidden bg-hero-gradient">
-        {/* Static grid overlay */}
+      <section
+        className="relative overflow-hidden pt-28 text-white"
+        style={{
+          background:
+            "linear-gradient(120deg, #3c6fa1 0%, #4a85bc 24%, #51a3c4 50%, #65bd9f 76%, #a0d584 100%)",
+          backgroundSize: "180% 180%",
+          animation: "gradientShift 18s ease-in-out infinite",
+        }}
+      >
         <div
-          className="absolute inset-0 opacity-[0.14] pointer-events-none"
+          className="absolute inset-0 pointer-events-none opacity-[0.09]"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(88,133,255,0.28) 1px, transparent 1px), linear-gradient(90deg, rgba(88,133,255,0.28) 1px, transparent 1px)",
+              "linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
+            animation: "gridDrift 22s ease-in-out infinite",
           }}
         />
-
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/20 pointer-events-none" />
-
-        <div className="container relative z-10 pt-24 pb-20">
-          <div className="max-w-3xl">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white/80 text-xs font-medium mb-6 animate-fade-in">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              Regenerative Finance Platform — Now Live
-            </div>
-
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-[1.05] mb-6 animate-fade-in-up">
-              Connecting Capital to{" "}
-              <span className="text-transparent bg-clip-text" style={{
-                backgroundImage: "linear-gradient(135deg, #4ade80, #60a5fa)"
-              }}>
-                Regenerative Impact
-              </span>
-            </h1>
-
-            <p className="text-lg md:text-xl text-white/70 leading-relaxed mb-10 max-w-2xl animate-fade-in-up delay-200">
-              Worldbridgers Regenify bridges ethical capital with verified ESG opportunities.
-              Discover issuers, explore offerings, and navigate the regenerative economy through
-              real-time data and intelligent relationship mapping.
-            </p>
-
-            <div className="flex flex-wrap gap-4 animate-fade-in-up delay-300">
-              <Button
-                size="lg"
-                className="bg-primary hover:bg-primary/90 text-white font-semibold px-8 shadow-brand group"
-                onClick={() => navigate("/login")}
-              >
-                Explore Platform
-                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 font-semibold px-8 bg-transparent"
-                onClick={() => navigate("/login")}
-              >
-                Request Access
-              </Button>
-            </div>
-
-            {/* Trust indicators */}
-            <div className="flex flex-wrap items-center gap-6 mt-12 animate-fade-in-up delay-400">
-              {[
-                { label: "EU Taxonomy Aligned" },
-                { label: "ISO 14001 Certified" },
-                { label: "SFDR Compliant" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-white/60 text-sm">
-                  <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                  {item.label}
-                </div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.12),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(167,243,208,0.16),transparent_30%),radial-gradient(circle_at_center_right,rgba(186,230,253,0.14),transparent_26%),radial-gradient(circle_at_center_left,rgba(255,255,255,0.1),transparent_28%)]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-12 top-28 h-48 w-48 rounded-full bg-emerald-100/10 blur-3xl [animation:float_16s_ease-in-out_infinite]" />
+          <div className="absolute right-24 top-36 h-56 w-56 rounded-full bg-sky-100/9 blur-3xl [animation:float_20s_ease-in-out_infinite_reverse]" />
+          <div className="absolute bottom-16 left-1/3 h-44 w-44 rounded-full bg-amber-50/8 blur-3xl [animation:float_18s_ease-in-out_infinite]" />
+          <div className="absolute inset-x-0 bottom-0 h-36 opacity-18">
+            <div className="flex h-full items-end gap-3 px-12">
+              {[28, 34, 31, 42, 48, 40, 58, 66, 60, 72, 76, 82].map((height, index) => (
+                <div
+                  key={index}
+                  className="flex-1 rounded-t-[18px] bg-gradient-to-t from-white/10 via-sky-200/10 to-emerald-200/20"
+                  style={{
+                    height: `${height}%`,
+                    animation: `pulseBars ${6 + (index % 4)}s ease-in-out ${index * 0.2}s infinite`,
+                  }}
+                />
               ))}
             </div>
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/40 text-xs animate-bounce">
-          <span>Scroll</span>
-          <div className="w-px h-8 bg-gradient-to-b from-white/40 to-transparent" />
-        </div>
-      </section>
-
-      {/* ── STATS ────────────────────────────────────────────────────────────── */}
-      <section className="py-20 bg-white border-y border-border">
-        <div className="container">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {STATS.map((stat, i) => {
-              const Icon = stat.icon;
-              return (
-                <div key={i} className="text-center group">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-muted mb-4 group-hover:scale-110 transition-transform ${stat.color}`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="text-4xl font-bold text-foreground mb-1">
-                    <AnimatedCounter target={stat.value} suffix={stat.suffix} />
-                  </div>
-                  <div className="text-sm text-muted-foreground font-medium">{stat.label}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ─────────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-background">
-        <div className="container">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4">
-              Platform Capabilities
-            </div>
-            <h2 className="text-4xl font-bold text-foreground mb-4">
-              Everything you need for{" "}
-              <span className="gradient-text">intelligent ESG investing</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              A unified platform combining real-time data, relationship intelligence, and compliance tools for the regenerative economy.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={i}
-                  className="group relative bg-card rounded-2xl p-6 border border-border shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+        <div className="container relative z-10 pb-20">
+          <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+            <div className="max-w-[780px] pt-6">
+              <h1 className="max-w-[760px] text-[3.7rem] font-bold leading-[0.98] md:text-[4.7rem] lg:text-[5.55rem]">
+                Connecting Capital to{" "}
+                <span
+                  className="bg-clip-text text-transparent"
+                  style={{ backgroundImage: "linear-gradient(135deg, #4ade80, #93c5fd, #fde047)" }}
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${f.color}`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {f.badge}
-                    </span>
-                  </div>
-                  <h3 className="font-semibold text-foreground mb-2">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{f.description}</p>
-                  <div className="mt-4 flex items-center gap-1 text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                    Learn more <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── GRAPH PREVIEW ────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
-        {/* Background grid */}
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: "linear-gradient(rgba(100,200,160,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(100,200,160,0.3) 1px, transparent 1px)",
-          backgroundSize: "40px 40px"
-        }} />
-
-        <div className="container relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 text-emerald-300 text-xs font-semibold mb-6">
-                <Network className="w-3.5 h-3.5" /> Relationship Intelligence
-              </div>
-              <h2 className="text-4xl font-bold text-white mb-6">
-                See the full picture with{" "}
-                <span className="text-transparent bg-clip-text" style={{ backgroundImage: "linear-gradient(135deg, #4ade80, #60a5fa)" }}>
-                  graph intelligence
+                  Regenerative Impact
                 </span>
-              </h2>
-              <p className="text-slate-400 text-lg leading-relaxed mb-8">
-                Our Neo4j-powered graph engine maps every relationship between issuers, investors,
-                opportunities, and markets — revealing hidden connections and investment pathways
-                invisible to traditional data tools.
+              </h1>
+
+              <p className="mt-7 max-w-[660px] text-[1.22rem] leading-[1.7] text-white/74 md:text-[1.28rem]">
+                Worldbridgers Regenify bridges ethical capital with verified ESG opportunities. Discover issuers, explore offerings, and navigate the regenerative economy through real-time data and intelligent relationship mapping.
               </p>
-              <div className="space-y-4 mb-8">
-                {[
-                  "Interactive node-edge visualization",
-                  "Click-to-explore entity details",
-                  "Filter by type, region, or category",
-                  "Real-time relationship updates",
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-slate-300 text-sm">
-                    <div className="w-5 h-5 rounded-full bg-emerald-400/20 flex items-center justify-center shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
-                    </div>
+
+              <div className="mt-9 flex flex-wrap gap-4">
+                <Button
+                  size="lg"
+                  className="h-16 rounded-xl bg-[#4ade80] px-12 text-[1.05rem] font-bold text-slate-950 shadow-brand hover:bg-[#86efac]"
+                  onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
+                >
+                  Explore Platform
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-16 rounded-xl border-white/30 bg-white/5 px-11 text-[1.05rem] font-semibold text-white hover:border-white/50 hover:bg-white/10"
+                  onClick={() => {
+                    window.location.href = isAuthenticated ? "/dashboard/account?view=support" : "/login?mode=request-access";
+                  }}
+                >
+                  Request Access
+                </Button>
+              </div>
+
+              <div className="mt-10 flex flex-wrap items-center gap-5 text-sm text-white/64">
+                {["EU Taxonomy aligned", "ISO 14001 certified", "SFDR compliant", "Graph intelligence"].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-300" />
                     {item}
                   </div>
                 ))}
               </div>
-              <Button
-                className="bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-semibold"
-                onClick={() => navigate("/login")}
-              >
-                Explore Graph View
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
             </div>
 
-            {/* Graph preview visualization */}
-            <div className="relative">
-              <div className="aspect-square max-w-md mx-auto relative">
-                <div className="absolute inset-0 rounded-3xl bg-slate-800/80 border border-slate-700/50 backdrop-blur-sm overflow-hidden">
-                  <svg viewBox="0 0 400 400" className="w-full h-full">
-                    {/* Rings */}
-                    <circle cx={200} cy={200} r={78} fill="none" stroke="rgba(148,163,184,0.22)" strokeWidth="1.5" />
-                    <circle cx={200} cy={200} r={130} fill="none" stroke="rgba(148,163,184,0.30)" strokeWidth="2" />
+            <div className="relative lg:pl-2">
+              <div className="absolute inset-x-10 top-12 h-52 rounded-full bg-emerald-400/20 blur-3xl" />
+              <div className="relative mx-auto max-w-[560px] overflow-hidden rounded-[30px] border border-white/18 bg-white/95 p-4 text-slate-900 shadow-[0_30px_100px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-slate-50/90 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Lead index</p>
+                        <div className="mt-1 truncate text-lg font-semibold text-slate-950">
+                          {leadIndex?.name ?? "Loading index feed"}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Latest</div>
+                        <div className="mt-1 text-lg font-semibold text-slate-950">
+                          {leadIndex ? `${leadIndex.currency} ${leadIndex.last.toFixed(2)}` : "—"}
+                        </div>
+                      </div>
+                    </div>
 
-                    {/* Curved edges from center to all nodes */}
-                    {PREVIEW_RING_NODES.map((n, i) => {
-                      const radius = n.ring === "inner" ? 78 : 130;
-                      const rad = (n.angle * Math.PI) / 180;
-                      const x = 200 + Math.cos(rad) * radius;
-                      const y = 200 + Math.sin(rad) * radius;
-                      const cx = 200 + Math.cos(rad) * (radius * 0.45);
-                      const cy = 200 + Math.sin(rad) * (radius * 0.45);
-                      return (
-                        <path
-                          key={`edge-center-${i}`}
-                          d={`M 200 200 Q ${cx} ${cy} ${x} ${y}`}
-                          stroke="rgba(125,211,252,0.18)"
-                          strokeWidth="1.2"
-                          fill="none"
-                        />
-                      );
-                    })}
+                    <div className="mt-4 rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="mb-4 flex flex-wrap gap-4 text-xs font-medium text-slate-600">
+                        {heroSeries.map((item, index) => (
+                          <div key={item.id} className="inline-flex items-center gap-2">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full ${
+                                index === 0 ? "bg-blue-500" : index === 1 ? "bg-rose-500" : "bg-emerald-500"
+                              }`}
+                            />
+                            {item.name}
+                          </div>
+                        ))}
+                      </div>
 
-                    {/* Ring nodes */}
-                    {PREVIEW_RING_NODES.map((n, i) => {
-                      const radius = n.ring === "inner" ? 78 : 130;
-                      const rad = (n.angle * Math.PI) / 180;
-                      const x = 200 + Math.cos(rad) * radius;
-                      const y = 200 + Math.sin(rad) * radius;
-                      return (
-                        <g key={`ring-node-${i}`}>
-                          <circle cx={x} cy={y} r={11} fill="rgba(15,23,42,0.9)" />
-                          <circle cx={x} cy={y} r={8.5} fill="rgba(255,255,255,0.95)" stroke={n.color} strokeWidth="2" />
-                        </g>
-                      );
-                    })}
+                      <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-3">
+                        <div className="flex h-[162px] flex-col justify-between pb-6 pt-1 text-[11px] font-medium text-slate-500">
+                          {[1, 0.5, 0, -0.5, -1, -1.5].map((tick) => (
+                            <div key={tick}>{tick}%</div>
+                          ))}
+                        </div>
 
-                    {/* Center hexagon node */}
-                    <polygon
-                      points="200,164 231,182 231,218 200,236 169,218 169,182"
-                      fill="url(#centerGrad)"
-                      stroke="rgba(59,130,246,0.75)"
-                      strokeWidth="2.5"
-                    />
+                        <div>
+                          <svg viewBox="0 0 470 162" className="h-[162px] w-full">
+                            {[0, 1, 2, 3, 4, 5].map((row) => (
+                              <line
+                                key={row}
+                                x1="18"
+                                x2="454"
+                                y1={12 + row * 27}
+                                y2={12 + row * 27}
+                                stroke={row === 1 ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.18)"}
+                                strokeWidth="1"
+                              />
+                            ))}
+
+                            {[0, 1, 2].map((col) => (
+                              <line
+                                key={col}
+                                x1={18 + col * 145}
+                                x2={18 + col * 145}
+                                y1="12"
+                                y2="147"
+                                stroke="rgba(148,163,184,0.12)"
+                                strokeWidth="1"
+                              />
+                            ))}
+
+                            {heroSeries.map((item, index) => (
+                              <path
+                                key={item.id}
+                                d={linePath(item.series, 470, 162, chartMin, chartMax)}
+                                fill="none"
+                                stroke={index === 0 ? "#2563eb" : index === 1 ? "#ef4444" : "#34d399"}
+                                strokeWidth="3.25"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            ))}
+
+                            {heroSeries.map((item, index) => {
+                              const last = item.series[item.series.length - 1];
+                              const x = 451;
+                              const y = 12 + 123 - ((last - chartMin) / Math.max(chartMax - chartMin, 1)) * 123;
+                              const stroke = index === 0 ? "#2563eb" : index === 1 ? "#ef4444" : "#34d399";
+                              return (
+                                <g key={`${item.id}-marker`}>
+                                  <circle cx={x} cy={y} r="4.5" fill={stroke} />
+                                  <rect
+                                    x={x - 6}
+                                    y={y - 22}
+                                    rx="7"
+                                    width="54"
+                                    height="18"
+                                    fill={stroke}
+                                    opacity="0.92"
+                                  />
+                                  <text x={x + 21} y={y - 9} textAnchor="middle" fontSize="10" fill="#ffffff" style={{ fontWeight: 700 }}>
+                                    {item.changePercent.toFixed(2)}%
+                                  </text>
+                                </g>
+                              );
+                            })}
+                          </svg>
+
+                          <div className="mt-2 flex items-center justify-between px-2 text-[11px] font-medium text-slate-500">
+                            <span>Jan 24</span>
+                            <span>Feb 24</span>
+                            <span>Mar 24</span>
+                            <span>Apr 24</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      {heroSeries.map((item) => {
+                        const positive = item.changePercent >= 0;
+                        return (
+                          <div key={`${item.id}-summary`} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                            <div className="text-xs text-slate-500">Performance</div>
+                            <div className="mt-1 truncate text-sm font-semibold text-slate-900">{item.name}</div>
+                            <div className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${positive ? "text-emerald-600" : "text-rose-600"}`}>
+                              {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                              {positive ? "+" : ""}
+                              {item.changePercent.toFixed(2)}%
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-white py-16">
+        <div className="container grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {displayStats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <button
+                key={stat.label}
+                type="button"
+                onClick={() =>
+                  navigate(isAuthenticated ? stat.href : `/login?next=${encodeURIComponent(stat.href)}`)
+                }
+                className={`rounded-3xl border p-6 text-center shadow-card transition-transform hover:-translate-y-1 hover:shadow-card-hover ${
+                  stat.label === "Verified Issuers"
+                    ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white"
+                    : stat.label === "Live Offerings"
+                      ? "border-blue-200 bg-gradient-to-br from-blue-50 to-white"
+                      : stat.label === "Sustainable Indices"
+                        ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white"
+                        : "border-teal-200 bg-gradient-to-br from-teal-50 to-white"
+                }`}
+              >
+                <div
+                  className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ${
+                    stat.label === "Verified Issuers"
+                      ? "bg-emerald-100"
+                      : stat.label === "Live Offerings"
+                        ? "bg-blue-100"
+                        : stat.label === "Sustainable Indices"
+                          ? "bg-amber-100"
+                          : "bg-teal-100"
+                  } ${stat.color}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-4 text-[2.9rem] font-bold leading-none text-foreground md:text-[3.25rem]">
+                  <AnimatedCounter target={stat.value} suffix={stat.suffix} />
+                </div>
+                <div className="mt-2 text-[0.95rem] font-medium text-muted-foreground">{stat.label}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="bg-background py-24">
+        <div className="container">
+          <div className="mx-auto mb-16 max-w-2xl text-center">
+            <Badge variant="secondary" className="bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary hover:bg-primary/10">
+              Platform Capabilities
+            </Badge>
+            <h2 className="mt-4 text-4xl font-bold text-foreground">
+              Everything you need for{" "}
+              <span className="text-primary">intelligent ESG investing</span>
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              A unified platform combining real-time data, relationship intelligence, and compliance tools for the regenerative economy.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {PLATFORM_FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              const href = feature.href;
+              const targetHref =
+                isAuthenticated || href === "/discover"
+                  ? href
+                  : `/login?next=${encodeURIComponent(href)}`;
+              return (
+                <button
+                  key={feature.title}
+                  type="button"
+                  onClick={() => navigate(targetHref)}
+                  className="flex min-h-[248px] flex-col rounded-[28px] border border-border bg-card p-7 text-left shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${feature.color}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      {feature.badge}
+                    </span>
+                  </div>
+                  <h3 className="mt-6 text-[1.35rem] font-semibold leading-tight text-foreground">{feature.title}</h3>
+                  <p className="mt-4 text-sm leading-6 text-muted-foreground">{feature.description}</p>
+                  <div className="mt-auto inline-flex items-center gap-1 pt-6 text-base font-semibold text-primary">
+                    Learn more
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-16 text-white">
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(100,200,160,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(100,200,160,0.3) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }}
+        />
+
+        <div className="container relative z-10 grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div className="max-w-[560px]">
+            <Badge className="bg-emerald-400/15 text-emerald-200 hover:bg-emerald-400/15">
+              Relationship Intelligence
+            </Badge>
+            <h2 className="mt-5 text-4xl font-bold md:text-5xl">
+              See the full picture with{" "}
+              <span className="bg-gradient-to-r from-emerald-300 to-sky-300 bg-clip-text text-transparent">
+                graph intelligence
+              </span>
+            </h2>
+            <p className="mt-5 max-w-[620px] text-[1.02rem] leading-8 text-white/68">
+              Our proprietary database and graph intelligence layer maps every relationship between issuers, investors, opportunities, and markets, revealing hidden connections and investment pathways invisible to traditional data tools.
+            </p>
+
+            <div className="mt-8 max-w-[430px] space-y-4">
+              {[
+                "Interactive node-edge visualization",
+                "Click-to-explore entity details",
+                "Filter by type, region, or category",
+                "Real-time relationship updates",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[0.95rem] text-white/82">
+                  <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-300" />
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              className="mt-8 h-12 rounded-xl bg-emerald-400 px-7 text-base font-semibold text-slate-950 shadow-brand hover:bg-emerald-300"
+              onClick={() => navigate(isAuthenticated ? "/dashboard/graph" : "/login?next=/dashboard/graph")}
+            >
+              Explore Graph View
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="relative">
+            <div className="mx-auto max-w-[560px] rounded-[32px] border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+              <button
+                onClick={() => navigate("/dashboard/graph")}
+                className="relative w-full text-left transition-transform hover:scale-[1.01]"
+              >
+                <div className="rounded-[26px] border border-white/10 bg-slate-900/80 p-4">
+                <svg viewBox="0 0 400 400" className="mx-auto h-[360px] w-full">
+                    <circle cx="200" cy="200" r="78" fill="none" stroke="rgba(148,163,184,0.22)" strokeWidth="1.5" />
+                    <circle cx="200" cy="200" r="130" fill="none" stroke="rgba(148,163,184,0.30)" strokeWidth="2" />
+
+                    {PREVIEW_RING_NODES.map((node, index) => {
+                    const radius = node.ring === "inner" ? 78 : 130;
+                    const rad = (node.angle * Math.PI) / 180;
+                    const x = 200 + Math.cos(rad) * radius;
+                    const y = 200 + Math.sin(rad) * radius;
+                    const cx = 200 + Math.cos(rad) * (radius * 0.45);
+                    const cy = 200 + Math.sin(rad) * (radius * 0.45);
+
+                    return (
+                      <path
+                        key={`edge-${index}`}
+                        d={`M 200 200 Q ${cx} ${cy} ${x} ${y}`}
+                        stroke="rgba(125,211,252,0.18)"
+                        strokeWidth="1.2"
+                        fill="none"
+                      />
+                    );
+                  })}
+
+                    {PREVIEW_RING_NODES.map((node, index) => {
+                    const radius = node.ring === "inner" ? 78 : 130;
+                    const rad = (node.angle * Math.PI) / 180;
+                    const x = 200 + Math.cos(rad) * radius;
+                    const y = 200 + Math.sin(rad) * radius;
+
+                    return (
+                      <g key={`node-${index}`}>
+                        <circle cx={x} cy={y} r={11} fill="rgba(15,23,42,0.9)" />
+                        <circle cx={x} cy={y} r={8.5} fill="rgba(255,255,255,0.95)" stroke={node.color} strokeWidth="2" />
+                        {node.ring === "inner" ? (
+                          <text
+                            x={x + (x >= 200 ? 15 : -15)}
+                            y={y}
+                            textAnchor={x >= 200 ? "start" : "end"}
+                            dominantBaseline="middle"
+                            fontSize="9"
+                            fill="rgba(255,255,255,0.82)"
+                          >
+                            {node.label}
+                          </text>
+                        ) : (
+                          <text
+                            x={x}
+                            y={y + 24}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontSize="8.5"
+                            fill="rgba(255,255,255,0.76)"
+                          >
+                            {node.label}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+
+                    <g>
+                      <polygon points={previewHexPoints(52)} transform="translate(200 200)" fill="url(#centerGlow)" stroke="rgba(96,165,250,0.95)" strokeWidth="2.5" />
+                      <circle cx="200" cy="200" r="60" fill="none" stroke="rgba(137,166,255,0.32)" strokeWidth="2" />
+                    </g>
+
                     <defs>
-                      <radialGradient id="centerGrad" cx="50%" cy="50%" r="60%">
-                        <stop offset="0%" stopColor="#f59e0b" />
-                        <stop offset="60%" stopColor="#f97316" />
-                        <stop offset="100%" stopColor="#1e3a8a" />
+                      <radialGradient id="centerGlow" cx="50%" cy="50%" r="65%">
+                        <stop offset="0%" stopColor="#fb923c" />
+                        <stop offset="58%" stopColor="#f59e0b" />
+                        <stop offset="100%" stopColor="#ea580c" />
                       </radialGradient>
                     </defs>
-                  </svg>
-                </div>
+                </svg>
 
-                {/* Legend */}
-                <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-2 justify-center">
+                <div className="mt-2 flex flex-wrap justify-center gap-2 px-2 pb-1">
                   {[
                     { color: "#4ade80", label: "Issuers" },
                     { color: "#60a5fa", label: "Investors" },
                     { color: "#fbbf24", label: "Opportunities" },
                     { color: "#a78bfa", label: "Markets" },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1 text-[11px] text-white/68">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
                       {item.label}
                     </div>
                   ))}
                 </div>
-              </div>
+                </div>
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ─────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-white">
+      <section className="border-y border-border bg-gradient-to-br from-primary/5 via-blue-500/5 to-amber-500/5 py-24">
         <div className="container">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 text-xs font-semibold mb-4">
-              How It Works
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+              <Leaf className="h-8 w-8 text-primary" />
             </div>
-            <h2 className="text-4xl font-bold text-foreground mb-4">
-              From discovery to{" "}
-              <span className="gradient-text">deployment</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              A structured workflow designed for institutional investors, family offices, and impact-first allocators.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {HOW_IT_WORKS.map((step, i) => (
-              <div key={i} className="relative">
-                {i < HOW_IT_WORKS.length - 1 && (
-                  <div className="hidden lg:block absolute top-6 left-[calc(100%-16px)] w-8 h-px bg-border z-10" />
-                )}
-                <div className="text-5xl font-bold text-primary/15 mb-4 font-mono">{step.step}</div>
-                <h3 className="font-semibold text-foreground mb-2">{step.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ──────────────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-gradient-to-br from-primary/5 via-blue-500/5 to-amber-500/5 border-y border-border">
-        <div className="container">
-          <div className="max-w-3xl mx-auto text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <Leaf className="w-8 h-8 text-primary" />
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            <h2 className="text-4xl font-bold text-foreground md:text-5xl">
               Ready to invest in the{" "}
-              <span className="gradient-text">regenerative future</span>?
+              <span className="bg-gradient-to-r from-emerald-500 to-sky-500 bg-clip-text text-transparent">
+                regenerative future?
+              </span>
             </h2>
-            <p className="text-muted-foreground text-lg mb-10">
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
               Join institutional investors, family offices, and impact allocators already using Worldbridgers Regenify to discover, analyse, and deploy capital into verified ESG opportunities.
             </p>
-            <div className="flex flex-wrap gap-4 justify-center">
+            <div className="mt-10 flex flex-wrap justify-center gap-4">
               <Button
                 size="lg"
-                className="bg-primary hover:bg-primary/90 text-white font-semibold px-10 shadow-brand"
-                onClick={() => navigate("/login")}
+                className="bg-primary px-10 font-semibold text-white shadow-brand hover:bg-primary/90"
+                onClick={() => navigate(isAuthenticated ? "/dashboard" : "/login")}
               >
                 Get Started Today
-                <ArrowRight className="ml-2 w-4 h-4" />
+                <ArrowRight className="h-4 w-4" />
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="font-semibold px-10"
-                onClick={() => navigate("/login")}
+                className="px-10 font-semibold"
+                onClick={() => {
+                  window.location.href = isAuthenticated ? "/dashboard/account?view=support" : "/login?mode=request-access";
+                }}
               >
                 Schedule a Demo
               </Button>
@@ -499,71 +792,68 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────────────────────────── */}
-      <footer className="bg-slate-900 text-slate-400 py-16">
+      <footer className="bg-slate-950 py-16 text-slate-400">
         <div className="container">
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
-            {/* Brand */}
+          <div className="mb-12 grid gap-10 md:grid-cols-2 lg:grid-cols-5">
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <Leaf className="w-4 h-4 text-white" />
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+                  <Leaf className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <div className="text-white font-bold text-sm">Worldbridgers</div>
-                  <div className="text-primary text-[10px] font-semibold tracking-widest uppercase">Regenify</div>
+                  <div className="text-sm font-bold text-white">Worldbridgers</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-primary">Regenify</div>
                 </div>
               </div>
-              <p className="text-sm leading-relaxed mb-6">
-                Connecting capital to regenerative impact through intelligent ESG data, relationship mapping, and verified investment opportunities.
+              <p className="max-w-md text-sm leading-7">
+                Connecting capital to regenerative impact through market intelligence, relationship discovery, and verified opportunities.
               </p>
-              <div className="flex gap-3">
-                {[Twitter, Linkedin, Github, Mail].map((Icon, i) => (
-                  <button key={i} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-slate-700 transition-colors">
-                    <Icon className="w-4 h-4" />
+              <div className="mt-6 flex gap-3">
+                {[Twitter, Linkedin, Github, Mail].map((Icon, index) => (
+                  <button
+                    key={index}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 transition-colors hover:bg-slate-800"
+                    onClick={() => navigate("/login")}
+                  >
+                    <Icon className="h-4 w-4" />
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Links */}
             {[
-              {
-                title: "Platform",
-                links: ["Issuers", "Offerings", "Indices", "Documents", "Graph View"],
-              },
-              {
-                title: "Company",
-                links: ["About Us", "Our Specialists", "Careers", "Press", "Contact"],
-              },
-              {
-                title: "Legal",
-                links: ["Privacy Policy", "Terms of Service", "Cookie Policy", "Disclosures"],
-              },
-            ].map((col, i) => (
-              <div key={i}>
-                <h4 className="text-white font-semibold text-sm mb-4">{col.title}</h4>
-                <ul className="space-y-2">
-                  {col.links.map((link, j) => (
-                    <li key={j}>
-                      <button
-                        className="text-sm hover:text-white transition-colors"
-                        onClick={() => navigate("/login")}
-                      >
-                        {link}
-                      </button>
-                    </li>
+              ["Platform", ["Issuers", "Offerings", "Indices", "Documents", "Graph View"]],
+              ["Access", ["Log In", "Request Access", "Support", "Onboarding"]],
+              ["Company", ["About", "Specialists", "Contact", "Privacy"]],
+            ].map(([title, links]) => (
+              <div key={title as string}>
+                <h4 className="mb-4 text-sm font-semibold text-white">{title as string}</h4>
+                <div className="space-y-2">
+                  {(links as string[]).map((link) => (
+                    <button
+                      key={link}
+                      className="block text-sm transition-colors hover:text-white"
+                      onClick={() => {
+                        if (link === "Request Access") {
+                          window.location.href = "/login?mode=request-access";
+                          return;
+                        }
+                        navigate("/login");
+                      }}
+                    >
+                      {link}
+                    </button>
                   ))}
-                </ul>
+                </div>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+          <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 text-xs md:flex-row">
             <p>© 2026 Worldbridgers Regenify. All rights reserved.</p>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>EU Taxonomy Aligned · SFDR Compliant · ISO 14001</span>
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              <span>EU Taxonomy aligned · SFDR compliant · Global market coverage</span>
             </div>
           </div>
         </div>

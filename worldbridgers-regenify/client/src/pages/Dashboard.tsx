@@ -163,6 +163,10 @@ function ChangeCell({ value, suffix = "%" }: { value: number; suffix?: string })
   );
 }
 
+function HeaderDot({ color }: { color: string }) {
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} />;
+}
+
 // ── Dashboard Home ────────────────────────────────────────────────────────────
 function DashboardHome({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
   const { user } = useAuth();
@@ -178,12 +182,40 @@ function DashboardHome({ onTabChange }: { onTabChange: (tab: TabKey) => void }) 
     queryKey: ["indices", "home"],
     queryFn: () => backendApi.indices(buildParams({ page: 1, page_size: 4 })) as Promise<Paginated<IndexRow>>,
   });
+  const documentsQ = useQuery<Paginated<DocumentRow>>({
+    queryKey: ["documents", "home"],
+    queryFn: () => backendApi.documents(buildParams({ page: 1, page_size: 1 })) as Promise<Paginated<DocumentRow>>,
+  });
 
   const stats = [
-    { label: "Issuers", value: "340+", icon: Building2, color: "text-primary bg-primary/10", tab: "issuers" as TabKey },
-    { label: "Offerings", value: "1,280+", icon: Layers, color: "text-blue-600 bg-blue-500/10", tab: "offerings" as TabKey },
-    { label: "Indices", value: "48", icon: BarChart3, color: "text-amber-600 bg-amber-500/10", tab: "indices" as TabKey },
-    { label: "Documents", value: "5,600+", icon: FileText, color: "text-purple-600 bg-purple-500/10", tab: "documents" as TabKey },
+    {
+      label: "Issuers",
+      value: `${issuersQ.data?.total ?? 0}+`,
+      icon: Building2,
+      color: "text-primary bg-primary/10",
+      tab: "issuers" as TabKey,
+    },
+    {
+      label: "Offerings",
+      value: `${offeringsQ.data?.total ?? 0}+`,
+      icon: Layers,
+      color: "text-blue-600 bg-blue-500/10",
+      tab: "offerings" as TabKey,
+    },
+    {
+      label: "Indices",
+      value: `${indicesQ.data?.total ?? 0}`,
+      icon: BarChart3,
+      color: "text-amber-600 bg-amber-500/10",
+      tab: "indices" as TabKey,
+    },
+    {
+      label: "Documents",
+      value: `${documentsQ.data?.total ?? 0}+`,
+      icon: FileText,
+      color: "text-purple-600 bg-purple-500/10",
+      tab: "documents" as TabKey,
+    },
   ];
 
   return (
@@ -214,13 +246,21 @@ function DashboardHome({ onTabChange }: { onTabChange: (tab: TabKey) => void }) 
             <button
               key={i}
               onClick={() => onTabChange(s.tab)}
-              className="bg-card rounded-xl p-4 border border-border shadow-card hover:shadow-card-hover transition-all text-left group"
+              className={`group rounded-[24px] border p-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover ${
+                s.label === "Issuers"
+                  ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white"
+                  : s.label === "Offerings"
+                    ? "border-blue-200 bg-gradient-to-br from-blue-50 to-white"
+                    : s.label === "Indices"
+                      ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white"
+                      : "border-violet-200 bg-gradient-to-br from-violet-50 to-white"
+              }`}
             >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
+              <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${s.color}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <div className="text-2xl font-bold text-foreground">{s.value}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+              <div className="text-[2rem] font-bold leading-none text-foreground">{s.value}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{s.label}</div>
               <div className="mt-2 flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                 View all <ArrowRight className="w-3 h-3" />
               </div>
@@ -362,14 +402,29 @@ function IssuersTab() {
   const totalActive = Object.values(filters).flat().length;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "name", label: "Issuer Name", sortable: true, className: "min-w-[200px]" },
+    {
+      key: "name",
+      label: (
+        <>
+          <HeaderDot color="bg-emerald-500" />
+          <span>Issuer Name</span>
+        </>
+      ),
+      sortable: true,
+      className: "min-w-[200px]",
+    },
     { key: "country", label: "Country", sortable: true },
     { key: "classification", label: "Classification", sortable: true,
       render: (v) => (
         <Badge variant="secondary" className="text-xs font-medium">{String(v)}</Badge>
       )
     },
-    { key: "wbxLabel", label: "WBX Label",
+    { key: "wbxLabel", label: (
+        <>
+          <HeaderDot color="bg-sky-500" />
+          <span>WBX Label</span>
+        </>
+      ),
       render: (v) => v ? (
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
           <ShieldCheck className="w-3 h-3" /> WBX
@@ -447,11 +502,21 @@ function OfferingsTab() {
   const totalActive = Object.values(filters).flat().length;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "type", label: "Type", sortable: true,
+    { key: "type", label: (
+        <>
+          <HeaderDot color="bg-amber-500" />
+          <span>Type</span>
+        </>
+      ), sortable: true,
       render: (v) => <Badge variant="outline" className="text-xs">{String(v)}</Badge>
     },
     { key: "segment", label: "Segment / Market", sortable: true },
-    { key: "issuer", label: "Issuer", sortable: true, className: "min-w-[160px]" },
+    { key: "issuer", label: (
+        <>
+          <HeaderDot color="bg-emerald-500" />
+          <span>Issuer</span>
+        </>
+      ), sortable: true, className: "min-w-[160px]" },
     { key: "isin", label: "ISIN", className: "font-mono text-xs" },
     { key: "name", label: "Name", className: "min-w-[200px]" },
     { key: "issuedAmount", label: "Issued Amount", className: "text-right",
@@ -531,7 +596,12 @@ function IndicesTab() {
   const totalActive = Object.values(filters).flat().length;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "type", label: "Type", sortable: true,
+    { key: "type", label: (
+        <>
+          <HeaderDot color="bg-violet-500" />
+          <span>Type</span>
+        </>
+      ), sortable: true,
       render: (v) => <span className="text-xs font-medium text-muted-foreground">{String(v)}</span>
     },
     { key: "name", label: "Name", sortable: true, className: "min-w-[220px] font-medium" },
@@ -610,14 +680,24 @@ function DocumentsTab() {
   const totalActive = Object.values(filters).flat().length;
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "type", label: "Type",
+    { key: "type", label: (
+        <>
+          <HeaderDot color="bg-rose-500" />
+          <span>Type</span>
+        </>
+      ),
       render: (v) => <Badge variant="secondary" className="text-xs">{String(v)}</Badge>
     },
     { key: "subType", label: "Sub Type",
       render: (v) => <span className="text-xs text-muted-foreground">{String(v)}</span>
     },
     { key: "name", label: "Name", className: "min-w-[260px] font-medium" },
-    { key: "issuer", label: "Issuer", className: "min-w-[160px]" },
+    { key: "issuer", label: (
+        <>
+          <HeaderDot color="bg-emerald-500" />
+          <span>Issuer</span>
+        </>
+      ), className: "min-w-[160px]" },
     { key: "memberStates", label: "Member States",
       render: (v) => (
         <div className="flex flex-wrap gap-1">
@@ -695,20 +775,20 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-[#f4f6fa] flex flex-col">
       <DashboardHeader />
 
       <div className="flex-1 flex flex-col">
         {/* Tab navigation */}
-        <div className="bg-white border-b border-border">
+        <div className="sticky top-[73px] z-40 border-b border-[#334658] bg-[#2d3b49] shadow-[0_10px_32px_rgba(15,23,42,0.12)]">
           <div className="container">
-            <div className="flex items-center gap-0 overflow-x-auto">
+            <div className="flex items-center gap-1 overflow-x-auto py-1.5">
               <button
                 onClick={() => navigate("/dashboard")}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === "home"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                    ? "bg-white text-[#1f2e3b]"
+                    : "text-white/72 hover:bg-white/8 hover:text-white"
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
@@ -720,10 +800,10 @@ export default function Dashboard() {
                   <button
                     key={tab.key}
                     onClick={() => handleTabChange(tab.key)}
-                    className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                       activeTab === tab.key
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                        ? "bg-white text-[#1f2e3b]"
+                        : "text-white/72 hover:bg-white/8 hover:text-white"
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -733,7 +813,11 @@ export default function Dashboard() {
               })}
               <Link
                 href="/dashboard/graph"
-                className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-border transition-colors whitespace-nowrap"
+                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                  location.includes("/dashboard/graph")
+                    ? "bg-white text-[#1f2e3b]"
+                    : "text-white/72 hover:bg-white/8 hover:text-white"
+                }`}
               >
                 <Network className="w-4 h-4" />
                 Graph View
@@ -743,7 +827,7 @@ export default function Dashboard() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 container py-5">
+        <div className="container flex-1 py-6">
           {activeTab === "home" && <DashboardHome onTabChange={handleTabChange} />}
           {activeTab === "issuers" && (
             <div className="h-[calc(100vh-160px)]">

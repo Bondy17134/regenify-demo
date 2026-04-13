@@ -36,21 +36,22 @@ export function useAuth(options?: UseAuthOptions) {
   });
 
   const logout = useCallback(async () => {
+    queryClient.setQueryData(["auth", "me"], null);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("regenify-user-info", "null");
+    }
+
     try {
       await logoutMutation.mutateAsync();
     } catch {
       // Ignore logout API errors in demo mode.
     } finally {
       queryClient.setQueryData(["auth", "me"], null);
-      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     }
   }, [logoutMutation, queryClient]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,
@@ -64,6 +65,12 @@ export function useAuth(options?: UseAuthOptions) {
     logoutMutation.error,
     logoutMutation.isPending,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (meQuery.isLoading) return;
+    localStorage.setItem("regenify-user-info", JSON.stringify(meQuery.data ?? null));
+  }, [meQuery.data, meQuery.isLoading]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
