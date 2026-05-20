@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { publicHighlights, publicNavigation } from "@/lib/navigation";
-import { Search, ChevronDown, Menu, X, Leaf, User, Wallet, Settings, HelpCircle, LogOut } from "lucide-react";
+import { DISCOVER_TOPICS } from "@/lib/discoverTopics";
+import { ChevronDown, Menu, X, Leaf, User, Wallet, Settings, HelpCircle, LogOut, Search } from "lucide-react";
 
 function resolveAuthenticatedHref(href: string, isAuthenticated: boolean) {
   if (!isAuthenticated) {
@@ -39,8 +40,10 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const isAuthenticated = Boolean(user);
@@ -55,14 +58,82 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
   }, []);
 
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setSearchOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const publicSearchItems = useMemo(() => {
+    const navItems = publicNavigation.flatMap((group) => {
+      const direct = group.href
+        ? [{
+            label: group.label,
+            href: group.href,
+            description: `Go to ${group.label}.`,
+          }]
+        : [];
+
+      const nested = group.items.map((item) => ({
+        label: item.label,
+        href: resolveAuthenticatedHref(item.href, isAuthenticated),
+        description: item.description ?? `Open ${item.label}.`,
+      }));
+
+      return [...direct, ...nested];
+    });
+
+    const topicItems = DISCOVER_TOPICS.map((topic) => ({
+      label: topic.title,
+      href: `/discover/${topic.slug}`,
+      description: topic.summary,
+    }));
+
+    const supportingPages = [
+      { label: "Contact", href: "/contact", description: "Reach the Worldbridgers Regenify team." },
+      { label: "Support", href: "/support", description: "Get platform help and guidance." },
+      { label: "Privacy", href: "/privacy", description: "Review privacy and data-use information." },
+    ];
+
+    const unique = new Map<string, { label: string; href: string; description: string }>();
+    [...navItems, ...topicItems, ...supportingPages].forEach((item) => {
+      unique.set(`${item.label}-${item.href}`, item);
+    });
+    return Array.from(unique.values());
+  }, [isAuthenticated]);
+
+  const searchResults = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    const source = publicSearchItems;
+    if (!query) {
+      return source.slice(0, 6);
+    }
+
+    return source
+      .filter((item) =>
+        `${item.label} ${item.description}`.toLowerCase().includes(query)
+      )
+      .slice(0, 8);
+  }, [publicSearchItems, searchValue]);
+
+  const handleSearchSelect = (href: string) => {
+    setSearchValue("");
+    setSearchOpen(false);
+    navigate(href);
+  };
+
+  const handleSearchSubmit = () => {
+    const first = searchResults[0];
+    if (first) {
+      handleSearchSelect(first.href);
+      return;
+    }
+    navigate("/discover");
+  };
 
   const useLightStyle = lightBackground || scrolled;
 
@@ -76,14 +147,14 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
       }`}
     >
       <div className="container">
-        <div className="flex items-center justify-between gap-4 py-4">
+        <div className="flex items-center justify-between gap-4 py-5">
           {/* Logo */}
           <Link href="/" className="mr-2 flex shrink-0 items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary shadow-brand">
               <Leaf className="h-4 w-4 text-white" />
             </div>
             <div className="leading-none">
-              <span className={`font-bold text-[17px] tracking-tight ${useLightStyle ? "text-foreground" : "text-white"}`}>
+              <span className={`font-bold text-[18px] tracking-tight ${useLightStyle ? "text-foreground" : "text-white"}`}>
                 Worldbridgers
               </span>
               <span className={`block text-[11px] font-medium tracking-[0.28em] uppercase ${useLightStyle ? "text-primary" : "text-green-300"}`}>
@@ -93,97 +164,129 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden min-w-0 flex-1 items-center justify-start gap-1 px-2 xl:flex">
+          <nav className="hidden min-w-0 flex-1 items-center justify-start gap-1 px-3 lg:flex">
             {publicNavigation.map((group) => (
-              <DropdownMenu
-                key={group.label}
-                open={activeMenu === group.label}
-                onOpenChange={(open) => setActiveMenu(open ? group.label : null)}
-              >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={`flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
-                      useLightStyle
-                        ? "text-foreground/70 hover:text-foreground hover:bg-muted"
-                        : "text-white/80 hover:text-white hover:bg-white/10"
-                    } ${activeMenu === group.label ? (useLightStyle ? "text-primary bg-primary/8" : "text-white bg-white/15") : ""}`}
-                  >
-                    <group.icon className="h-4 w-4" />
-                    {group.label}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform ${activeMenu === group.label ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-80 rounded-2xl border-border p-2">
-                  <DropdownMenuLabel className="px-3 pt-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                    {group.label}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {group.items.map((item) => (
-                    <DropdownMenuItem
-                      key={item.label}
-                      className="rounded-xl px-3 py-3"
-                      onClick={() => navigate(resolveAuthenticatedHref(item.href, isAuthenticated))}
+              group.href ? (
+              <button
+                  key={group.label}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-5 py-3.5 text-[18px] font-semibold transition-colors ${
+                    useLightStyle
+                      ? "text-foreground/70 hover:text-foreground hover:bg-muted"
+                      : "text-white/80 hover:text-white hover:bg-white/10"
+                  }`}
+                  onClick={() => navigate(group.href!)}
+                >
+                  {group.label}
+                </button>
+              ) : (
+                <DropdownMenu
+                  key={group.label}
+                  open={activeMenu === group.label}
+                  onOpenChange={(open) => setActiveMenu(open ? group.label : null)}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-5 py-3.5 text-[18px] font-semibold transition-colors ${
+                        useLightStyle
+                          ? "text-foreground/70 hover:text-foreground hover:bg-muted"
+                          : "text-white/80 hover:text-white hover:bg-white/10"
+                      } ${activeMenu === group.label ? (useLightStyle ? "text-primary bg-primary/8" : "text-white bg-white/15") : ""}`}
                     >
-                      <div className="flex items-start gap-3">
-                        {item.icon ? (
-                          <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                            <item.icon className="h-4 w-4" />
-                          </div>
-                        ) : null}
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-foreground">{item.label}</div>
-                          {item.description ? (
-                            <p className="text-xs leading-5 text-muted-foreground">{item.description}</p>
+                      {group.label}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-80 rounded-2xl border-border p-2">
+                    <DropdownMenuLabel className="px-3 pt-2 text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      {group.label}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {group.items.map((item) => (
+                      <DropdownMenuItem
+                        key={item.label}
+                        className="rounded-xl px-3 py-3"
+                        onClick={() => navigate(resolveAuthenticatedHref(item.href, isAuthenticated))}
+                      >
+                        <div className="flex items-start gap-3">
+                          {item.icon ? (
+                            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <item.icon className="h-4 w-4" />
+                            </div>
                           ) : null}
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-foreground">{item.label}</div>
+                            {item.description ? (
+                              <p className="text-xs leading-5 text-muted-foreground">{item.description}</p>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             ))}
           </nav>
 
           {/* Right actions */}
-          <div className="flex shrink-0 items-center gap-1.5">
-            {/* Search */}
-            <div className="relative hidden lg:flex items-center">
-              {searchOpen ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <div ref={searchRef} className="relative hidden lg:block">
+              <div className={`flex items-center rounded-2xl border px-4 py-2.5 shadow-sm transition-colors ${
+                useLightStyle
+                  ? "border-border bg-white"
+                  : "border-white/15 bg-white/10 backdrop-blur-sm"
+              }`}>
+                <Search className={`mr-3 h-4 w-4 ${useLightStyle ? "text-muted-foreground" : "text-white/70"}`} />
                 <Input
-                  autoFocus
-                  placeholder="Search platform..."
-                  className="h-10 w-44 rounded-xl border-white/15 bg-white/90 text-sm 2xl:w-56"
-                  onBlur={() => setSearchOpen(false)}
+                  value={searchValue}
+                  onChange={(event) => {
+                    setSearchValue(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSearchSubmit();
+                    }
+                  }}
+                  placeholder="Search pages, topics, markets..."
+                  className={`h-auto w-[220px] border-0 bg-transparent p-0 text-[15px] shadow-none focus-visible:ring-0 xl:w-[300px] 2xl:w-[360px] ${
+                    useLightStyle ? "text-foreground placeholder:text-muted-foreground" : "text-white placeholder:text-white/55"
+                  }`}
                 />
-              ) : (
-                <button
-                  onClick={() => setSearchOpen(true)}
-                    className={`p-2.5 rounded-xl transition-colors ${
-                      useLightStyle ? "text-foreground/60 hover:text-foreground hover:bg-muted" : "text-white/70 hover:text-white hover:bg-white/10"
-                    }`}
-                  >
-                  <Search className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+              </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`hidden xl:flex text-sm font-medium ${
-                useLightStyle ? "text-foreground hover:bg-muted" : "text-white hover:bg-white/10"
-              }`}
-              onClick={() => navigate("/discover")}
-            >
-              Discover
-            </Button>
+              {searchOpen ? (
+                <div className="absolute right-0 mt-3 w-[420px] overflow-hidden rounded-2xl border border-border bg-white shadow-2xl">
+                  <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Search results
+                  </div>
+                  <div className="max-h-[360px] overflow-y-auto p-2">
+                    {searchResults.length ? (
+                      searchResults.map((item) => (
+                        <button
+                          key={`${item.label}-${item.href}`}
+                          className="w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-muted"
+                          onClick={() => handleSearchSelect(item.href)}
+                        >
+                          <div className="text-sm font-semibold text-foreground">{item.label}</div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-sm text-muted-foreground">
+                        No matching pages yet. Try a topic, market, or platform feature.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className={`hidden xl:flex items-center gap-3 rounded-xl py-2 pl-2.5 pr-3.5 backdrop-blur-sm transition-colors ${
+                  <button className={`hidden lg:flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-4 backdrop-blur-sm transition-colors ${
                     useLightStyle
                       ? "border border-border bg-white text-foreground hover:bg-muted"
                       : "border border-white/15 bg-white/10 text-white hover:bg-white/15"
@@ -226,7 +329,7 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`hidden xl:flex text-sm font-medium ${
+                  className={`hidden lg:flex text-sm font-medium ${
                     useLightStyle ? "text-foreground hover:bg-muted" : "text-white hover:bg-white/10"
                   }`}
                   onClick={() => {
@@ -238,19 +341,19 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
 
                 <Button
                   size="sm"
-                  className="hidden xl:flex whitespace-nowrap text-sm font-semibold bg-primary px-4 hover:bg-primary/90 text-white shadow-brand"
+                  className="hidden lg:flex whitespace-nowrap text-sm font-semibold bg-primary px-4 hover:bg-primary/90 text-white shadow-brand"
                   onClick={() => {
-                    window.location.href = "/login?mode=request-access";
+                    window.location.href = "/login?mode=create-account";
                   }}
                 >
-                  Request Access
+                  Sign Up
                 </Button>
               </>
             )}
 
             {/* Mobile menu toggle */}
             <button
-              className={`xl:hidden p-2 rounded-lg ${useLightStyle ? "text-foreground" : "text-white"}`}
+              className={`lg:hidden p-2 rounded-lg ${useLightStyle ? "text-foreground" : "text-white"}`}
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -261,8 +364,42 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="xl:hidden bg-white border-t border-border shadow-lg max-h-[80vh] overflow-y-auto">
+        <div className="lg:hidden bg-white border-t border-border shadow-lg max-h-[80vh] overflow-y-auto">
           <div className="container py-4 space-y-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleSearchSubmit();
+                    setMobileOpen(false);
+                  }
+                }}
+                placeholder="Search pages, topics, markets..."
+                className="h-12 rounded-2xl border-border pl-11"
+              />
+              {searchValue.trim() && searchResults.length ? (
+                <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+                  {searchResults.slice(0, 4).map((item) => (
+                    <button
+                      key={`${item.label}-${item.href}-mobile`}
+                      className="w-full border-b border-border px-4 py-3 text-left last:border-b-0"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        handleSearchSelect(item.href);
+                      }}
+                    >
+                      <div className="text-sm font-semibold text-foreground">{item.label}</div>
+                      <div className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             {publicHighlights.map((item) => (
               <button
                 key={item.label}
@@ -286,34 +423,45 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
 
             {publicNavigation.map((item) => (
               <div key={item.label}>
-                <button
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted rounded-lg"
-                  onClick={() => setActiveMenu(activeMenu === item.label ? null : item.label)}
-                >
-                  <span className="flex items-center gap-2">
-                    <item.icon className="h-4 w-4 text-primary" />
+                {item.href ? (
+                  <button
+                    className="w-full px-3 py-2.5 text-left text-[15px] font-medium text-foreground hover:bg-muted rounded-lg"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      navigate(item.href!);
+                    }}
+                  >
                     {item.label}
-                  </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${activeMenu === item.label ? "rotate-180" : ""}`} />
-                </button>
-                {activeMenu === item.label && (
-                  <div className="ml-4 mt-1 space-y-0.5">
-                    {item.items.map((sub) => (
-                      <button
-                        key={sub.label}
-                        className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
-                        onClick={() => {
-                          setMobileOpen(false);
-                          navigate(resolveAuthenticatedHref(sub.href, isAuthenticated));
-                        }}
-                      >
-                        <div className="font-medium text-foreground">{sub.label}</div>
-                        {sub.description ? (
-                          <div className="mt-0.5 text-xs leading-5 text-muted-foreground">{sub.description}</div>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-[15px] font-medium text-foreground hover:bg-muted rounded-lg"
+                      onClick={() => setActiveMenu(activeMenu === item.label ? null : item.label)}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${activeMenu === item.label ? "rotate-180" : ""}`} />
+                    </button>
+                    {activeMenu === item.label && (
+                      <div className="ml-4 mt-1 space-y-0.5">
+                        {item.items.map((sub) => (
+                          <button
+                            key={sub.label}
+                            className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
+                            onClick={() => {
+                              setMobileOpen(false);
+                              navigate(resolveAuthenticatedHref(sub.href, isAuthenticated));
+                            }}
+                          >
+                            <div className="font-medium text-foreground">{sub.label}</div>
+                            {sub.description ? (
+                              <div className="mt-0.5 text-xs leading-5 text-muted-foreground">{sub.description}</div>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -321,8 +469,8 @@ export default function PublicHeader({ lightBackground = false }: PublicHeaderPr
               <Button variant="outline" className="w-full" onClick={() => navigate("/discover")}>Discover</Button>
               <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Log In</Button>
               <Button className="w-full bg-primary text-white" onClick={() => {
-                window.location.href = "/login?mode=request-access";
-              }}>Request Access</Button>
+                window.location.href = "/login?mode=create-account";
+              }}>Sign Up</Button>
             </div>
           </div>
         </div>

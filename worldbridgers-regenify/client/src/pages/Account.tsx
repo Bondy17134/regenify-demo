@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardHeader from "@/components/DashboardHeader";
+import { backendApi } from "@/lib/backendApi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   CheckCircle2,
@@ -51,6 +56,45 @@ const ACCOUNT_TABS: {
   },
 ];
 
+type VisualConfig = {
+  tableDots: Record<string, string>;
+  hoverLineColor: string;
+};
+
+const TABLE_DOT_FIELDS = [
+  {
+    section: "Issuers page",
+    description: "Controls the issuer name dot and the WBX label dot in the Issuers table.",
+    fields: [
+      { key: "issuerName", label: "Issuer name column dot" },
+      { key: "wbxLabel", label: "WBX label column dot" },
+    ],
+  },
+  {
+    section: "Offerings page",
+    description: "Controls the issuer dot and the Type column dot in the Offerings table.",
+    fields: [
+      { key: "offeringIssuer", label: "Issuer column dot" },
+      { key: "offeringType", label: "Type column dot" },
+    ],
+  },
+  {
+    section: "Indices page",
+    description: "Controls the Type column dot in the Indices table.",
+    fields: [
+      { key: "indexType", label: "Type column dot" },
+    ],
+  },
+  {
+    section: "Documents page",
+    description: "Controls the issuer dot and the Type column dot in the Documents table.",
+    fields: [
+      { key: "documentIssuer", label: "Issuer column dot" },
+      { key: "documentType", label: "Type column dot" },
+    ],
+  },
+] as const;
+
 function getView(search: string): AccountView {
   const params = new URLSearchParams(search);
   const raw = params.get("view");
@@ -63,10 +107,46 @@ function getView(search: string): AccountView {
 export default function Account() {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<AccountView>(() =>
     getView(typeof window !== "undefined" ? window.location.search : "")
   );
+  const [supportEmailForm, setSupportEmailForm] = useState({
+    subject: "",
+    message: "",
+  });
+  const [callRequestForm, setCallRequestForm] = useState({
+    organisation: "",
+    preferredTime: "",
+    notes: "",
+  });
+  const [visualDraft, setVisualDraft] = useState<VisualConfig | null>(null);
   const activeTab = ACCOUNT_TABS.find((tab) => tab.key === view) ?? ACCOUNT_TABS[0];
+  const isAdmin = user?.role === "admin";
+
+  const visualConfigQuery = useQuery<VisualConfig>({
+    queryKey: ["admin", "visual-config"],
+    queryFn: () => backendApi.adminVisualConfig(),
+    enabled: isAdmin && view === "settings",
+    staleTime: 60_000,
+  });
+
+  const visualConfigMutation = useMutation({
+    mutationFn: (payload: VisualConfig) => backendApi.updateVisualConfig(payload),
+    onSuccess: (nextConfig) => {
+      setVisualDraft(nextConfig);
+      queryClient.setQueryData(["admin", "visual-config"], nextConfig);
+      void queryClient.invalidateQueries({ queryKey: ["issuers"] });
+      void queryClient.invalidateQueries({ queryKey: ["offerings"] });
+      void queryClient.invalidateQueries({ queryKey: ["indices"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["graph-view"] });
+      toast.success("Visual settings updated.");
+    },
+    onError: () => {
+      toast.error("Could not save visual settings.");
+    },
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,11 +160,47 @@ export default function Account() {
     return () => window.removeEventListener("popstate", syncView);
   }, []);
 
+  useEffect(() => {
+    if (!visualConfigQuery.data) {
+      return;
+    }
+    setVisualDraft(visualConfigQuery.data);
+  }, [visualConfigQuery.data]);
+
   const openView = (nextView: AccountView) => {
     setView(nextView);
     if (typeof window !== "undefined") {
       window.history.pushState({}, "", `/dashboard/account?view=${nextView}`);
     }
+  };
+
+  const updateHoverLineColor = (value: string) => {
+    setVisualDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        hoverLineColor: value,
+      };
+    });
+  };
+
+  const updateTableDotColor = (key: string, value: string) => {
+    setVisualDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        tableDots: {
+          ...current.tableDots,
+          [key]: value,
+        },
+      };
+    });
   };
 
   return (
@@ -227,31 +343,175 @@ export default function Account() {
                       <p className="mt-2 text-sm text-muted-foreground">{description}</p>
                     </div>
                   ))}
+
+                  {isAdmin ? (
+                    <div className="rounded-3xl border border-border bg-card p-6">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h2 className="text-lg font-semibold">Visual configuration</h2>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Set dashboard table dot colors and the hover-highlight color for graph connection lines.
+                          </p>
+                        </div>
+                        <Button
+                          className="bg-primary text-white hover:bg-primary/90"
+                          disabled={!visualDraft || visualConfigMutation.isPending}
+                          onClick={() => {
+                            if (!visualDraft) {
+                              return;
+                            }
+                            visualConfigMutation.mutate(visualDraft);
+                          }}
+                        >
+                          Save colors
+                        </Button>
+                      </div>
+
+                      {visualConfigQuery.isLoading ? (
+                        <div className="mt-6 text-sm text-muted-foreground">Loading visual settings...</div>
+                      ) : visualDraft ? (
+                        <div className="mt-6 space-y-6">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Table dots
+                            </div>
+                            <div className="mt-4 space-y-4">
+                              {TABLE_DOT_FIELDS.map((group) => (
+                                <div key={group.section} className="rounded-2xl border border-border bg-muted/30 p-4">
+                                  <div>
+                                    <div className="text-sm font-semibold text-foreground">{group.section}</div>
+                                    <p className="mt-1 text-xs leading-6 text-muted-foreground">{group.description}</p>
+                                  </div>
+                                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                    {group.fields.map((field) => (
+                                      <div key={field.key} className="rounded-2xl border border-border bg-white p-4">
+                                        <div className="flex items-center gap-3">
+                                          <span
+                                            className="h-3.5 w-3.5 rounded-full border border-white shadow-sm"
+                                            style={{ backgroundColor: visualDraft.tableDots[field.key] ?? "#94a3b8" }}
+                                          />
+                                          <div className="text-sm font-medium text-foreground">{field.label}</div>
+                                        </div>
+                                        <div className="mt-3 flex gap-3">
+                                          <Input
+                                            type="color"
+                                            value={visualDraft.tableDots[field.key] ?? "#94a3b8"}
+                                            onChange={(event) => updateTableDotColor(field.key, event.target.value)}
+                                            className="h-11 w-16 p-1"
+                                          />
+                                          <Input
+                                            value={visualDraft.tableDots[field.key] ?? ""}
+                                            onChange={(event) => updateTableDotColor(field.key, event.target.value)}
+                                            placeholder="#22c55e"
+                                            className="font-mono"
+                                          />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                            <div className="flex items-center gap-3">
+                              <span
+                                className="h-1.5 w-12 rounded-full"
+                                style={{ backgroundColor: visualDraft.hoverLineColor || "#111111" }}
+                              />
+                              <div className="text-sm font-medium text-foreground">Hovered graph connection line</div>
+                            </div>
+                            <div className="mt-3 flex gap-3">
+                              <Input
+                                type="color"
+                                value={visualDraft.hoverLineColor || "#111111"}
+                                onChange={(event) => updateHoverLineColor(event.target.value)}
+                                className="h-11 w-16 p-1"
+                              />
+                              <Input
+                                value={visualDraft.hoverLineColor || ""}
+                                onChange={(event) => updateHoverLineColor(event.target.value)}
+                                placeholder="#111111"
+                                className="font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-6 text-sm text-muted-foreground">
+                          No visual settings available yet.
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )}
 
               {view === "support" && (
                 <div className="space-y-4">
-                  {[
-                    {
-                      title: "Product support",
-                      description: "Questions about access, data quality, or onboarding.",
-                      action: "Email support",
-                    },
-                    {
-                      title: "Specialist desk",
-                      description: "Talk with the team about structuring offerings or impact workflows.",
-                      action: "Request call",
-                    },
-                  ].map((item) => (
-                    <div key={item.title} className="rounded-3xl border border-border bg-card p-6">
-                      <h2 className="text-lg font-semibold">{item.title}</h2>
-                      <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
-                      <Button className="mt-4 bg-primary text-white hover:bg-primary/90">
-                        {item.action}
+                  <div className="rounded-3xl border border-border bg-card p-6">
+                    <h2 className="text-lg font-semibold">Email support</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Send a support request about platform access, documents, onboarding, or data questions.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                      <Input
+                        placeholder="Support subject"
+                        value={supportEmailForm.subject}
+                        onChange={(event) => setSupportEmailForm((current) => ({ ...current, subject: event.target.value }))}
+                      />
+                      <Textarea
+                        className="min-h-[140px]"
+                        placeholder="Describe the issue or request"
+                        value={supportEmailForm.message}
+                        onChange={(event) => setSupportEmailForm((current) => ({ ...current, message: event.target.value }))}
+                      />
+                      <Button
+                        className="bg-primary text-white hover:bg-primary/90"
+                        onClick={() => {
+                          toast.success("Support email request saved on the frontend.");
+                          setSupportEmailForm({ subject: "", message: "" });
+                        }}
+                      >
+                        Email support
                       </Button>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="rounded-3xl border border-border bg-card p-6">
+                    <h2 className="text-lg font-semibold">Request call</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Ask for a follow-up call about structuring offerings, investor workflows, or platform guidance.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                      <Input
+                        placeholder="Organisation"
+                        value={callRequestForm.organisation}
+                        onChange={(event) => setCallRequestForm((current) => ({ ...current, organisation: event.target.value }))}
+                      />
+                      <Input
+                        placeholder="Preferred time or timezone"
+                        value={callRequestForm.preferredTime}
+                        onChange={(event) => setCallRequestForm((current) => ({ ...current, preferredTime: event.target.value }))}
+                      />
+                      <Textarea
+                        className="min-h-[140px]"
+                        placeholder="What would you like to discuss?"
+                        value={callRequestForm.notes}
+                        onChange={(event) => setCallRequestForm((current) => ({ ...current, notes: event.target.value }))}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          toast.success("Call request saved on the frontend.");
+                          setCallRequestForm({ organisation: "", preferredTime: "", notes: "" });
+                        }}
+                      >
+                        Request call
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </section>
